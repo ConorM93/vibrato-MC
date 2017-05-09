@@ -13,7 +13,6 @@ S  = max(1e-16,S);     % no division by 0
 K  = max(1e-16,K);     
 d1 = (log(S/K)+(r+(sigma^2)/2)*T)/(sigma * sqrt(T));
 d2 = d1 - sigma*(sqrt(T));
-%d2 = ( log(S) - log(K) + (r-0.5*sigma^2)*T ) / (sigma*sqrt(T));
 switch ans
 case 'value'
 V = (S *N(d1)) - (K*exp(-r*T)*N(d2));
@@ -30,13 +29,12 @@ case 'vanna'
 %    + exp(-r*T)*(exp(-0.5*d2.^2)./(sigma*sqrt(T)*S*(sigma+sqrt(T))));
 V = -exp(-r*T)*exp(-0.5*d1.^2)*(1/sqrt(2*pi))*(d2./sigma);
 otherwise
-error('Wrong value field')
+error('N/A, try again')
 end
 %
 % Normal cumulative distribution function
 %
 function ncf = N(x)
-%ncf = 0.5*(1+erf(x/sqrt(2)));
 xr = real(x);
 xi = imag(x);
 if abs(xi)>1e-10
