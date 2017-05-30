@@ -1,7 +1,12 @@
 % European digital/vanilla call option with asset price following 1-dimensional
 % geometric Brownian motion (Euler-Maruyama approximation). Calculation of
-% gamma,Vega,vanna,delta and their variances.
+% gamma,Vega,vanna,delta and their variances using Vibrato Monte Carlo.
 %
+% This method is described in https://arxiv.org/pdf/1606.06143.pdf. We use
+% a direct implementation here as opposed to using AD. Equations referenced
+% are from this paper.
+%
+% Values in brackets were test values I used.
 % mu - drift (0.05)
 % sig - volatility (0.1)
 % T     - time interval (1)
@@ -10,9 +15,10 @@
 % M     - number of Monte Carlo paths (10000)
 % d   - number of final Z variables (10)
 % N     - number of timesteps (100)
+% flavor - type of option payoff (currently valid is digital or vanilla)
 function [valVanna, valVega,valDelta, valGamma,varVanna,...
     varVega,varDelta,varGamma] =... 
-    Vibrato2ndOrder(mu, sig, T, S0, K, M, d, N)
+    Vibrato2ndOrder(mu, sig, T, S0, K, M, d, N, flavor)
 
 h = T/N;
 
@@ -35,7 +41,7 @@ end
 
 Z = randn(d,M);
 
-muw = S*(1+mu*h); %array of drift of final S (dim M)
+muw = S*(1+mu*h); %array of drift of final timesteps for each path
 sigmaw = S*(sig*sqrt(h)); %array of vols of final timestep
 
 dmuw = tanS0*(1+mu*h); % S0 tangent drifts
@@ -50,23 +56,27 @@ vasigmaw = tanS0Sig*(sig*sqrt(h)) + tanS0*sqrt(h);
 Sp=ones(d,1)*muw+(ones(d,1)*sigmaw).*Z;
 Sm=ones(d,1)*muw-(ones(d,1)*sigmaw).*Z;
 Sneutral=ones(d,1)*muw;
+%The above quantities are used for the calculation of antithetic variables
+%later, to speed up convergence
 
-
-%fSp = exp(-mu*T)*(0.5)*(1 + sign(Sp - K));
-%fSm = exp(-mu*T)*(0.5)*(1 + sign(Sm - K)); %Then take the payoff value
-%fmuw = exp(-mu*T)*(0.5)*(1 + sign(Sneutral - K));
-%ABOVE IS DIGITAL CALLS
-
-fSp = exp(-mu*T)*(0.5)*(1+ sign(Sp-K)).*(Sp-K);
-fSm = exp(-mu*T)*(0.5)*(1 + sign(Sm - K)).*(Sm-K); %Then take the payoff value
-fmuw = exp(-mu*T)*(0.5)*(1 + sign(Sneutral - K)).*(Sneutral-K);
-%ABOVE IS VANILLA CALLS. COMMENT THIS AND REMOVE ABOVE FOR DIGITAL.
+switch flavor
+    case 'vanilla'
+        fSp = exp(-mu*T)*(0.5)*(1+ sign(Sp-K)).*(Sp-K);
+        fSm = exp(-mu*T)*(0.5)*(1 + sign(Sm - K)).*(Sm-K); %These are payoff values
+        fmuw = exp(-mu*T)*(0.5)*(1 + sign(Sneutral - K)).*(Sneutral-K);
+    case 'digital'
+        fSp = exp(-mu*T)*(0.5)*(1 + sign(Sp - K));
+        fSm = exp(-mu*T)*(0.5)*(1 + sign(Sm - K)); 
+        fmuw = exp(-mu*T)*(0.5)*(1 + sign(Sneutral - K));
+    otherwise
+        error('Invalid payoff time. Currently "digital" or "vanilla" is supported')
+end
     
 oddAntithetic = fSp - fSm; % For terms where the polynomial in Z is odd
 evenAntithetic = fSp - 2*fmuw + fSm; % When its even, subtract the 2 to
 %stay O(1)
 
-%Second order terms
+%Second order terms, section 2.4.2
 Ymusquare = (Z.^2-1).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(evenAntithetic);
 Ysigmasquare = (Z.^4-5.*Z.^2 - 2).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(evenAntithetic);
 Ymixed = (Z.^3-3.*Z).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(oddAntithetic);
@@ -77,7 +87,7 @@ Ydoublesigma = (Z.^2-1).*(ones(d,1)*(1./(sigmaw)))*(1/2).*(evenAntithetic);
 Ymu = Z.*(ones(d,1)*(1./sigmaw))*(1/2).*(oddAntithetic);
 Ysigma = (Z.^2-1).*(ones(d,1)*(1./sigmaw))*(1/2).*(evenAntithetic);
 
-%Now we compute the delta
+%Now we compute the delta, as in earlier first order section (2.2-2.3)
 
 deltMat = (ones(d,1)*dmuw).*Ymu + (ones(d,1)*dsigmaw).*Ysigma;
 valsDelta = 1/d*sum(deltMat);
@@ -118,6 +128,3 @@ valsVanna = 1/d*sum(vannaMat);
 valVanna = sum(valsVanna)/M;
 varVanna=(1/M)*(1/M*sum(valsVanna.^2)-(valVanna)^2)+1/(M*d)...
     *1/M*sum(sum(vannaMat.^2)/d-valsVanna.^2);
-
-
-
