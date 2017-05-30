@@ -1,18 +1,24 @@
+function GreekVersusPrice(flavor, spots, greek, begin, upper, mu, sig, T, K, M, d, N)
+
 %Plots the evolution of a certain Greek with price. Choices are delta,
-%gamma,vega, vanna
+%gamma,vega, vanna. Flavor of option is also supported (digital or vanilla)
+%begin/upper - interval of spot over which to plot greek
+%spots - desired number of spots in interval
+%mu - risk-free rate
+%sig - vol
+%T - time to expiry
+%K - strike
+%M - number of Monte Carlo paths used in each simulation
+%d - number of random variables for each final timestep
+%N - number of timesteps in discretisation of path
 
-
-spots = 100;
-InitialSpots = linspace(70,130,spots);
+InitialSpots = linspace(begin,upper,spots);
 Analytics = zeros(1, spots);
 MonteCarlos = zeros(1, spots);
 
-greek = 'vanna';
-item = 1;
-%vanna-1, vega-2 delta-3, gamma-4
 for i = 1:spots
-    Analytics(i) = AnalyticVanillaCall(1,InitialSpots(i), 0.1,0.05,100,greek);
-    vibArray = Vibrato2ndOrder(0.05, 0.1, 1, InitialSpots(i), 100, 100000, 10, 100);
+    Analytics(i) = AnalyticVanillaCall(T,InitialSpots(i), vol,mu,K,greek);
+    vibArray = Vibrato2ndOrder(mu, sig, T, InitialSpots(i), K, M, d, N, flavor, greek);
     MonteCarlos(i) = vibArray(1);
 end
 
