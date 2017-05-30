@@ -16,9 +16,9 @@
 % d   - number of final Z variables (10)
 % N     - number of timesteps (100)
 % flavor - type of option payoff (currently valid is digital or vanilla)
-function [valVanna, valVega,valDelta, valGamma,varVanna,...
-    varVega,varDelta,varGamma] =... 
-    Vibrato2ndOrder(mu, sig, T, S0, K, M, d, N, flavor)
+% greek - greek desired (currently valid is delta, gamma, vega, vanna)
+function [value, variance] =... 
+    Vibrato2ndOrder(mu, sig, T, S0, K, M, d, N, flavor, greek)
 
 h = T/N;
 
@@ -76,55 +76,49 @@ oddAntithetic = fSp - fSm; % For terms where the polynomial in Z is odd
 evenAntithetic = fSp - 2*fmuw + fSm; % When its even, subtract the 2 to
 %stay O(1)
 
-%Second order terms, section 2.4.2
-Ymusquare = (Z.^2-1).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(evenAntithetic);
-Ysigmasquare = (Z.^4-5.*Z.^2 - 2).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(evenAntithetic);
-Ymixed = (Z.^3-3.*Z).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(oddAntithetic);
-Ydoublemu = (Z).*(ones(d,1)*(1./(sigmaw)))*(1/2).*(oddAntithetic);
-Ydoublesigma = (Z.^2-1).*(ones(d,1)*(1./(sigmaw)))*(1/2).*(evenAntithetic);
-
-%First order terms
-Ymu = Z.*(ones(d,1)*(1./sigmaw))*(1/2).*(oddAntithetic);
-Ysigma = (Z.^2-1).*(ones(d,1)*(1./sigmaw))*(1/2).*(evenAntithetic);
-
-%Now we compute the delta, as in earlier first order section (2.2-2.3)
-
-deltMat = (ones(d,1)*dmuw).*Ymu + (ones(d,1)*dsigmaw).*Ysigma;
-valsDelta = 1/d*sum(deltMat);
-
-valDelta = sum(valsDelta)/M;
-varDelta=(1/M)*(1/M*sum(valsDelta.^2)-(valDelta)^2)+1/(M*d)...
-    *1/M*sum(sum(deltMat.^2)/d-valsDelta.^2);
-
-
-%Now vega
-vegaMat = (ones(d,1)*vmuw).*Ymu + (ones(d,1)*vsigmaw).*Ysigma;
-valsVega = 1/d*sum(vegaMat);
-
-valVega = sum(valsVega)/M;
-
-varVega=(1/M)*(1/M*sum(valsVega.^2)-(valVega)^2)+1/(M*d)...
-    *1/M*sum(sum(vegaMat.^2)/d-valsVega.^2);
-
-
-%Now gamma
-gammaMat = (ones(d,1)*(dmuw.^2)).*Ymusquare + ...
-(ones(d,1)*(dsigmaw.^2)).*Ysigmasquare + ...
-2.*(ones(d,1)*(dmuw.*dsigmaw)).*Ymixed;
-valsGamma = 1/d*sum(gammaMat);
-
-valGamma = sum(valsGamma)/M;
-varGamma=(1/M)*(1/M*sum(valsGamma.^2)-(valGamma)^2)+1/(M*d)...
-    *1/M*sum(sum(gammaMat.^2)/d-valsGamma.^2);
-
-%Now vanna
-vannaMat = (ones(d,1)*(vamuw)).*Ydoublemu + ...
-    (ones(d,1)*(dmuw.*vmuw)).*Ymusquare + ...
-    (ones(d,1)*(vasigmaw)).*Ydoublesigma + ...
-    (ones(d,1)*(dsigmaw.*vsigmaw)).*Ysigmasquare + ...
-    (ones(d,1)*(dmuw.*vsigmaw + vmuw.*dsigmaw)).*Ymixed;
-valsVanna = 1/d*sum(vannaMat);
-
-valVanna = sum(valsVanna)/M;
-varVanna=(1/M)*(1/M*sum(valsVanna.^2)-(valVanna)^2)+1/(M*d)...
-    *1/M*sum(sum(vannaMat.^2)/d-valsVanna.^2);
+switch greek %Section 2.2-2.3 for explanation of 1st order, 2.4 for 2nd
+    case 'delta'
+        Ymu = Z.*(ones(d,1)*(1./sigmaw))*(1/2).*(oddAntithetic);
+        Ysigma = (Z.^2-1).*(ones(d,1)*(1./sigmaw))*(1/2).*(evenAntithetic);
+        deltMat = (ones(d,1)*dmuw).*Ymu + (ones(d,1)*dsigmaw).*Ysigma;
+        valsDelta = 1/d*sum(deltMat);
+        value = sum(valsDelta)/M;
+        variance=(1/M)*(1/M*sum(valsDelta.^2)-(value)^2)+1/(M*d)...
+        *1/M*sum(sum(deltMat.^2)/d-valsDelta.^2);
+    case 'vega'
+        Ymu = Z.*(ones(d,1)*(1./sigmaw))*(1/2).*(oddAntithetic);
+        Ysigma = (Z.^2-1).*(ones(d,1)*(1./sigmaw))*(1/2).*(evenAntithetic);
+        vegaMat = (ones(d,1)*vmuw).*Ymu + (ones(d,1)*vsigmaw).*Ysigma;
+        valsVega = 1/d*sum(vegaMat);
+        value = sum(valsVega)/M;
+        variance=(1/M)*(1/M*sum(valsVega.^2)-(value)^2)+1/(M*d)...
+        *1/M*sum(sum(vegaMat.^2)/d-valsVega.^2);
+    case 'gamma'
+        Ymusquare = (Z.^2-1).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(evenAntithetic);
+        Ysigmasquare = (Z.^4-5.*Z.^2 - 2).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(evenAntithetic);
+        Ymixed = (Z.^3-3.*Z).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(oddAntithetic);
+        gammaMat = (ones(d,1)*(dmuw.^2)).*Ymusquare + ...
+        (ones(d,1)*(dsigmaw.^2)).*Ysigmasquare + ...
+        2.*(ones(d,1)*(dmuw.*dsigmaw)).*Ymixed;
+        valsGamma = 1/d*sum(gammaMat);
+        value = sum(valsGamma)/M;
+        variance=(1/M)*(1/M*sum(valsGamma.^2)-(value)^2)+1/(M*d)...
+        *1/M*sum(sum(gammaMat.^2)/d-valsGamma.^2);
+    case 'vanna'
+        Ydoublemu = (Z).*(ones(d,1)*(1./(sigmaw)))*(1/2).*(oddAntithetic);
+        Ydoublesigma = (Z.^2-1).*(ones(d,1)*(1./(sigmaw)))*(1/2).*(evenAntithetic);
+        Ymusquare = (Z.^2-1).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(evenAntithetic);
+        Ysigmasquare = (Z.^4-5.*Z.^2 - 2).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(evenAntithetic);
+        Ymixed = (Z.^3-3.*Z).*(ones(d,1)*(1./(sigmaw.^2)))*(1/2).*(oddAntithetic);
+        vannaMat = (ones(d,1)*(vamuw)).*Ydoublemu + ...
+        (ones(d,1)*(dmuw.*vmuw)).*Ymusquare + ...
+        (ones(d,1)*(vasigmaw)).*Ydoublesigma + ...
+        (ones(d,1)*(dsigmaw.*vsigmaw)).*Ysigmasquare + ...
+        (ones(d,1)*(dmuw.*vsigmaw + vmuw.*dsigmaw)).*Ymixed;
+        valsVanna = 1/d*sum(vannaMat);
+        value = sum(valsVanna)/M;
+        variance=(1/M)*(1/M*sum(valsVanna.^2)-(value)^2)+1/(M*d)...
+        *1/M*sum(sum(vannaMat.^2)/d-valsVanna.^2);
+    otherwise
+        error('Invalid Greek. Delta, gamma, vega and vanna are currently supported');
+end
